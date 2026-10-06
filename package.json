@@ -1,10 +1,10 @@
 {
-  "name": "lingtong-tenant-a-demo",
+  "name": "xianlixiu-kuaimai-template",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "engines": { "node": ">=22" },
-  "scripts": { "build": "vite build", "dev": "vite --host 127.0.0.1", "preview": "vite preview --host 127.0.0.1" },
+  "scripts": { "build": "vite build", "dev": "vite --host 127.0.0.1", "preview": "vite preview --host 127.0.0.1", "local:api": "node local-api/server.mjs", "test": "node --test local-api/*.test.mjs" },
   "dependencies": { "vue": "3.5.18" },
   "devDependencies": { "@vitejs/plugin-vue": "6.0.1", "vite": "7.1.2" }
 }
