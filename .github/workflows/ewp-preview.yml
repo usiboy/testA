@@ -49,6 +49,7 @@ jobs:
               throw new Error('OIDC signature algorithm or run identity invalid');
             }
             core.info(`oidc_scope_verified=testA event=${claims.event_name} typ=${header.typ || 'absent'} run=${context.runId}`);
+            core.info(`oidc_timing=i${claims.iat}-n${claims.nbf || 0}-e${claims.exp} now=${Math.floor(Date.now() / 1000)} attempt=${claims.run_attempt} jti_present=${typeof claims.jti === 'string'}`);
             // Never print or persist the JWT. Repository build must have succeeded first.
       - name: 将经 CI 的固定 SHA 交给受限平台
         if: github.event_name == 'push'
@@ -78,7 +79,8 @@ jobs:
               req.end(body);
             });
             if (response.status !== 202) {
-              throw new Error(`Platform rejected the source: HTTP ${response.status}`);
+              const problem = JSON.parse(response.data);
+              throw new Error(`Platform rejected the source: HTTP ${response.status} code=${problem.error?.code || 'unavailable'}`);
             }
             const receipt = JSON.parse(response.data);
             if (receipt.status !== 'awaiting_isolated_build' || !/^oidc-[0-9a-f]{32}$/.test(receipt.deliveryId)) {
