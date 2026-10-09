@@ -1,4 +1,4 @@
-name: 验证绫通网站平台 OIDC 身份（不发布）
+name: 绫通网站平台测试仓库 A 交付
 
 on:
   push:
@@ -15,6 +15,14 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run build
       - name: 请求 GitHub Actions 的短期 OIDC 身份
         uses: actions/github-script@v7
         with:
@@ -41,4 +49,39 @@ jobs:
               throw new Error('OIDC signature algorithm or run identity invalid');
             }
             core.info(`oidc_scope_verified=testA event=${claims.event_name} typ=${header.typ || 'absent'} run=${context.runId}`);
-            // Never print, persist or upload the JWT. This probe does not publish a site.
+            // Never print or persist the JWT. Repository build must have succeeded first.
+      - name: 将经 CI 的固定 SHA 交给受限平台
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        env:
+          EWP_INTERNAL_CA_PEM: ${{ secrets.EWP_INTERNAL_CA_PEM }}
+        with:
+          script: |
+            const https = require('node:https');
+            const token = await core.getIDToken('ewp-ecs-testA');
+            const body = JSON.stringify({ repositoryId: '1404606559' });
+            if (!process.env.EWP_INTERNAL_CA_PEM?.includes('BEGIN CERTIFICATE')) throw new Error('Missing internal test CA');
+            const response = await new Promise((resolve, reject) => {
+              const req = https.request({
+                hostname: '114.55.237.62', port: 443, servername: 'console.ecp.lingtong.com',
+                path: '/v1/hooks/github-actions', method: 'POST', ca: process.env.EWP_INTERNAL_CA_PEM,
+                rejectUnauthorized: true, timeout: 45000,
+                headers: { Host: 'console.ecp.lingtong.com', Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+              }, res => {
+                let data = '';
+                res.on('data', chunk => { data += chunk; if (data.length > 16384) req.destroy(new Error('Oversized response')); });
+                res.on('end', () => resolve({ status: res.statusCode, data }));
+              });
+              req.on('timeout', () => req.destroy(new Error('Platform timeout')));
+              req.on('error', reject);
+              req.end(body);
+            });
+            if (response.status !== 202) {
+              throw new Error(`Platform rejected the source: HTTP ${response.status}`);
+            }
+            const receipt = JSON.parse(response.data);
+            if (receipt.status !== 'awaiting_isolated_build' || !/^oidc-[0-9a-f]{32}$/.test(receipt.deliveryId)) {
+              throw new Error('Platform did not record the fixed-source job');
+            }
+            core.info(`ewp_source_recorded=testA delivery=${receipt.deliveryId} build=queued`);
