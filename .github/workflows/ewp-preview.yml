@@ -49,7 +49,7 @@ jobs:
               throw new Error('OIDC signature algorithm or run identity invalid');
             }
             core.info(`oidc_scope_verified=testA event=${claims.event_name} typ=${header.typ || 'absent'} run=${context.runId}`);
-            core.info(`oidc_timing=i${claims.iat}-n${claims.nbf || 0}-e${claims.exp} now=${Math.floor(Date.now() / 1000)} attempt=${claims.run_attempt} jti_present=${typeof claims.jti === 'string'}`);
+            core.info(`oidc_timing=i${claims.iat}-n${claims.nbf || 0}-e${claims.exp} now=${Math.floor(Date.now() / 1000)} attempt=${claims.run_attempt} jti_present=${typeof claims.jti === 'string'} sub=${claims.sub} kid=${header.kid || 'absent'}`);
             // Never print or persist the JWT. Repository build must have succeeded first.
       - name: 将经 CI 的固定 SHA 交给受限平台
         if: github.event_name == 'push'
