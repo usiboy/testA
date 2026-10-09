@@ -1,0 +1,44 @@
+name: 验证绫通网站平台 OIDC 身份（不发布）
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-identity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: 请求 GitHub Actions 的短期 OIDC 身份
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jwt = await core.getIDToken('ewp-ecs-testA');
+            const pieces = jwt.split('.');
+            if (pieces.length !== 3) throw new Error('OIDC token format invalid');
+            const header = JSON.parse(Buffer.from(pieces[0], 'base64url').toString('utf8'));
+            const claims = JSON.parse(Buffer.from(pieces[1], 'base64url').toString('utf8'));
+            const expected = {
+              iss: 'https://token.actions.githubusercontent.com',
+              aud: 'ewp-ecs-testA',
+              repository: 'usiboy/testA',
+              repository_id: '1404606559',
+              repository_owner_id: '1673411',
+              ref: 'refs/heads/main',
+              sha: context.sha,
+              workflow_ref: 'usiboy/testA/.github/workflows/ewp-preview.yml@refs/heads/main',
+            };
+            for (const [name, value] of Object.entries(expected)) {
+              if (claims[name] !== value) throw new Error(`OIDC ${name} does not match allowed repository`);
+            }
+            if (header.alg !== 'RS256' || claims.run_id !== String(context.runId)) {
+              throw new Error('OIDC signature algorithm or run identity invalid');
+            }
+            core.info(`oidc_scope_verified=testA event=${claims.event_name} typ=${header.typ || 'absent'} run=${context.runId}`);
+            // Never print, persist or upload the JWT. This probe does not publish a site.
